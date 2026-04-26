@@ -10,7 +10,7 @@ set -euo pipefail
 COMMAND=$1
 shift  # remaining args are passed to the command
 
-ALLOWED_COMMANDS=("git" "ls" "cat" "grep" "echo" "touch" "mkdir" "pwd")
+ALLOWED_COMMANDS=("git" "gemini" "ls" "cat" "grep" "echo" "touch" "mkdir" "pwd")
 
 is_allowed=false
 for allowed in "${ALLOWED_COMMANDS[@]}"; do

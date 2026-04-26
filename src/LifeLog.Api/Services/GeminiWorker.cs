@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using System.Diagnostics;
+using System.Text;
 using LifeLog.Infrastructure.Data;
 
 namespace LifeLog.Api.Services;
@@ -8,14 +9,19 @@ public class GeminiWorker : BackgroundService
 {
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<GeminiWorker> _logger;
+    private readonly IConfiguration _config;
 
     // Base path for all user vaults
     private const string VaultsBasePath = "/Users/cristian_bacter/Documents/Projects/LifeLog/LifeLogVaults/users";
 
-    public GeminiWorker(IServiceProvider serviceProvider, ILogger<GeminiWorker> logger)
+    // Backend root — Gemini CLI runs here (not in vault) to avoid agentic GEMINI.md mode
+    private const string BackendRootPath = "/Users/cristian_bacter/Documents/Projects/LifeLog/LifeLogBackend";
+
+    public GeminiWorker(IServiceProvider serviceProvider, ILogger<GeminiWorker> logger, IConfiguration config)
     {
         _serviceProvider = serviceProvider;
         _logger = logger;
+        _config = config;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -63,66 +69,47 @@ public class GeminiWorker : BackgroundService
                             var preHash = RunGit("rev-parse HEAD", workPath).Trim();
                             job.PreCommitHash = preHash;
 
-                            // Step 3: Write/update the daily note in vault-work
+                            // Step 3: Resolve vault paths
                             var noteDate = transcript.OccurredAt.ToLocalTime();
                             var dailyFolder = Path.Combine(workPath, "Daily");
                             Directory.CreateDirectory(dailyFolder);
 
                             var noteFileName = $"Daily-{noteDate:dd-MM-yyyy}.md";
                             var noteFilePath = Path.Combine(dailyFolder, noteFileName);
+                            var systemPromptPath = Path.Combine(workPath, "System", "GEMINI.md");
 
-                            // Create the file with frontmatter if it doesn't already exist
-                            if (!File.Exists(noteFilePath))
+                            // Step 4: Read system prompt and existing daily note
+                            var systemPrompt = File.Exists(systemPromptPath)
+                                ? await File.ReadAllTextAsync(systemPromptPath, stoppingToken)
+                                : string.Empty;
+
+                            var existingDailyNote = File.Exists(noteFilePath)
+                                ? await File.ReadAllTextAsync(noteFilePath, stoppingToken)
+                                : string.Empty;
+
+                            // Step 5: Build prompt and invoke Gemini CLI
+                            _logger.LogInformation("Invoking Gemini CLI for transcript {EventId}...", transcript.ClientEventId);
+
+                            var prompt = GeminiPromptBuilder.BuildDailyNotePrompt(
+                                systemPrompt,
+                                existingDailyNote,
+                                transcript.RawText,
+                                noteDate,
+                                noteFileName);
+
+                            var geminiOutput = await InvokeGeminiAsync(prompt, BackendRootPath, stoppingToken);
+
+                            if (string.IsNullOrWhiteSpace(geminiOutput))
                             {
-                                _logger.LogInformation("Creating new daily note: {FileName}", noteFileName);
-                                var frontmatter = $"""
----
-type: daily
-date: {noteDate:yyyy-MM-dd}
-tags:
-  - journal/daily
-mood: unknown
-energy: unknown
-main_feelings: []
-behaviors: []
-people: []
----
-
-# {noteDate:dd-MM-yyyy}
-
-## Log
-
-## Tasks
-
-## Feelings & Energy
-
-## Work Sessions
-
-## People
-
-## Evening Review
-
-""";
-                                await File.WriteAllTextAsync(noteFilePath, frontmatter, stoppingToken);
+                                _logger.LogWarning("Gemini CLI returned empty output for job {JobId}. Falling back to raw append.", job.Id);
+                                geminiOutput = FallbackDailyNote(existingDailyNote, noteDate, noteFileName, transcript.RawText);
                             }
 
-                            // Step 4: Append the log entry to the ## Log section
-                            var logEntry = $"\n- {noteDate:HH:mm} — {transcript.RawText}";
-                            var noteContent = await File.ReadAllTextAsync(noteFilePath, stoppingToken);
+                            // Step 6: Write Gemini output to the daily note
+                            await File.WriteAllTextAsync(noteFilePath, geminiOutput, stoppingToken);
+                            _logger.LogInformation("Wrote Gemini output to {FileName}", noteFileName);
 
-                            if (noteContent.Contains("## Log"))
-                            {
-                                noteContent = noteContent.Replace("## Log", $"## Log{logEntry}");
-                            }
-                            else
-                            {
-                                noteContent += logEntry;
-                            }
-
-                            await File.WriteAllTextAsync(noteFilePath, noteContent, stoppingToken);
-                            _logger.LogInformation("Appended log entry to {FileName}", noteFileName);
-
-                            // Step 5: Git commit in vault-work
+                            // Step 7: Git commit in vault-work
                             RunGit("add .", workPath);
                             var commitResult = RunGit(
                                 $"commit -m \"journal: transcript {transcript.ClientEventId} ({noteDate:HH:mm})\"",
@@ -137,11 +124,11 @@ people: []
                             var postHash = RunGit("rev-parse HEAD", workPath).Trim();
                             job.PostCommitHash = postHash;
 
-                            // Step 6: Push changes from vault-work back to vault-live
+                            // Step 8: Push changes from vault-work back to vault-live
                             _logger.LogInformation("Pushing vault-work changes to vault-live...");
                             RunGit("push origin main", workPath);
 
-                            // Step 7: Update vault-live working tree (push only updates git objects, not the working tree)
+                            // Step 9: Update vault-live working tree
                             _logger.LogInformation("Updating vault-live working tree...");
                             RunGit("reset --hard HEAD", livePath);
 
@@ -175,23 +162,145 @@ people: []
     }
 
     /// <summary>
-    /// Runs a git command via the gemini-wrapper.sh allowlist script.
+    /// Invokes the Gemini CLI with the given prompt piped via stdin and returns the response text.
     /// </summary>
-    private string RunGit(string arguments, string workingDirectory)
+    private async Task<string> InvokeGeminiAsync(string prompt, string workingDirectory, CancellationToken cancellationToken)
     {
-        return RunShellCommand("git", arguments, workingDirectory);
+        var cliPath = _config["Gemini:CliPath"] ?? "gemini";
+        var model = _config["Gemini:Model"] ?? string.Empty;
+        var timeoutSeconds = int.TryParse(_config["Gemini:TimeoutSeconds"], out var t) ? t : 120;
+
+        // Only pass --model if explicitly configured; otherwise use CLI default
+        var modelArg = string.IsNullOrWhiteSpace(model) ? string.Empty : $"--model {model} ";
+
+        // gemini CLI: pipe prompt via stdin, -p "" triggers headless mode.
+        // --yolo: auto-approve tool calls (no interactive prompt).
+        // Run from BackendRootPath, NOT vault, to prevent GEMINI.md agentic mode.
+        var process = new Process
+        {
+            StartInfo = new ProcessStartInfo
+            {
+                FileName = cliPath,
+                Arguments = $"{modelArg}--output-format text --yolo -p \"\"",
+                WorkingDirectory = workingDirectory,
+                RedirectStandardInput = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            }
+        };
+
+        process.Start();
+
+        // Write prompt to stdin and close it
+        await process.StandardInput.WriteAsync(prompt);
+        process.StandardInput.Close();
+
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        cts.CancelAfter(TimeSpan.FromSeconds(timeoutSeconds));
+
+        var outputTask = process.StandardOutput.ReadToEndAsync(cts.Token);
+        var errorTask = process.StandardError.ReadToEndAsync(cts.Token);
+
+        await process.WaitForExitAsync(cts.Token);
+
+        var output = await outputTask;
+        var error = await errorTask;
+
+        if (process.ExitCode != 0)
+        {
+            _logger.LogWarning("Gemini CLI exited with code {ExitCode}. Stderr: {Error}", process.ExitCode, error.Trim());
+        }
+
+        if (!string.IsNullOrWhiteSpace(error))
+        {
+            _logger.LogDebug("Gemini CLI stderr: {Error}", error.Trim());
+        }
+
+        // Strip markdown code block wrappers if Gemini wraps its output
+        return StripMarkdownWrapper(output.Trim());
     }
 
     /// <summary>
-    /// Runs a shell command through the gemini-wrapper.sh allowlist script.
+    /// Strips ```markdown ... ``` or ``` ... ``` wrappers from Gemini output if present.
     /// </summary>
+    private static string StripMarkdownWrapper(string output)
+    {
+        if (output.StartsWith("```markdown\n") || output.StartsWith("```markdown\r\n"))
+        {
+            output = output["```markdown".Length..].TrimStart('\r', '\n');
+            if (output.EndsWith("\n```"))
+                output = output[..^4];
+            else if (output.EndsWith("```"))
+                output = output[..^3];
+            return output.Trim();
+        }
+        if (output.StartsWith("```\n") || output.StartsWith("```\r\n"))
+        {
+            output = output[3..].TrimStart('\r', '\n');
+            if (output.EndsWith("\n```"))
+                output = output[..^4];
+            else if (output.EndsWith("```"))
+                output = output[..^3];
+            return output.Trim();
+        }
+        return output;
+    }
+
+    /// <summary>
+    /// Fallback: if Gemini CLI fails, create or append a basic log entry manually.
+    /// </summary>
+    private static string FallbackDailyNote(string existing, DateTimeOffset noteDate, string noteFileName, string rawText)
+    {
+        if (string.IsNullOrWhiteSpace(existing))
+        {
+            return $"""
+---
+type: daily
+date: {noteDate:yyyy-MM-dd}
+tags:
+  - journal/daily
+mood: unknown
+energy: unknown
+main_feelings: []
+behaviors: []
+people: []
+---
+
+# {noteDate:dd-MM-yyyy}
+
+## Log
+- {noteDate:HH:mm} — {rawText}
+
+## Tasks
+
+## Feelings & Energy
+
+## Work Sessions
+
+## People
+
+## Evening Review
+""";
+        }
+
+        var logEntry = $"\n- {noteDate:HH:mm} — {rawText}";
+        return existing.Contains("## Log")
+            ? existing.Replace("## Log", $"## Log{logEntry}")
+            : existing + logEntry;
+    }
+
+    private string RunGit(string arguments, string workingDirectory)
+        => RunShellCommand("git", arguments, workingDirectory);
+
     private string RunShellCommand(string command, string arguments, string workingDirectory)
     {
         var wrapperPath = "/Users/cristian_bacter/Documents/Projects/LifeLog/LifeLogBackend/scripts/gemini-wrapper.sh";
 
         if (!File.Exists(wrapperPath))
         {
-            _logger.LogError("gemini-wrapper.sh not found at {WrapperPath}. Refusing to execute command.", wrapperPath);
+            _logger.LogError("gemini-wrapper.sh not found at {WrapperPath}.", wrapperPath);
             return string.Empty;
         }
 
