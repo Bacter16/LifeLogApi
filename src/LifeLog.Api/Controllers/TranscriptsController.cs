@@ -3,11 +3,13 @@ using Microsoft.EntityFrameworkCore;
 using LifeLog.Infrastructure.Data;
 using LifeLog.Domain.Entities;
 using LifeLog.Api.DTOs;
+using LifeLog.Api.Filters;
 
 namespace LifeLog.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[ApiKeyAuthFilter]
 public class TranscriptsController : ControllerBase
 {
     private readonly LifeLogDbContext _db;
