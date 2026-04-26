@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/LifeLog.Api/LifeLog.Api.csproj" />
+    <Project Path="src/LifeLog.Application/LifeLog.Application.csproj" />
+    <Project Path="src/LifeLog.Domain/LifeLog.Domain.csproj" />
+    <Project Path="src/LifeLog.Infrastructure/LifeLog.Infrastructure.csproj" />
+  </Folder>
+</Solution>
