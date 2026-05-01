@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LifeLog Admin Dashboard</title>
+    <style>
+        :root {
+            --bg-primary: #0f0f14;
+            --bg-card: #1a1a24;
+            --bg-hover: #22223a;
+            --border: #2a2a3e;
+            --text-primary: #e8e8f0;
+            --text-secondary: #8888a8;
+            --text-muted: #555570;
+            --accent: #7c6aff;
+            --accent-dim: #5a4abf;
+            --success: #3adb8a;
+            --warning: #ffb347;
+            --danger: #ff5c6c;
+            --info: #4ac4ff;
+            --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+            --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font-family: var(--font-sans);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        /* ─── Header ───────────────────────────────────────── */
+        header {
+            background: linear-gradient(135deg, var(--bg-card), #1e1a3a);
+            border-bottom: 1px solid var(--border);
+            padding: 1.5rem 2rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        header h1 {
+            font-size: 1.4rem;
+            font-weight: 600;
+            color: var(--accent);
+            letter-spacing: -0.02em;
+        }
+        header h1 span { color: var(--text-secondary); font-weight: 400; }
+        .header-status {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+        .status-dot {
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            background: var(--success);
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        /* ─── Layout ───────────────────────────────────────── */
+        main {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        /* ─── Stats Cards ──────────────────────────────────── */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+        .stat-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.4rem;
+            transition: border-color 0.2s, transform 0.2s;
+        }
+        .stat-card:hover {
+            border-color: var(--accent-dim);
+            transform: translateY(-2px);
+        }
+        .stat-card .label {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--text-muted);
+            margin-bottom: 0.4rem;
+        }
+        .stat-card .value {
+            font-size: 2rem;
+            font-weight: 700;
+            font-family: var(--font-mono);
+            color: var(--text-primary);
+        }
+        .stat-card .sub {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-top: 0.3rem;
+        }
+
+        /* ─── Section Header ───────────────────────────────── */
+        .section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1rem;
+        }
+        .section-header h2 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        .filter-bar {
+            display: flex;
+            gap: 0.5rem;
+        }
+        .filter-btn {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            padding: 0.35rem 0.75rem;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .filter-btn:hover, .filter-btn.active {
+            background: var(--accent-dim);
+            border-color: var(--accent);
+            color: #fff;
+        }
+
+        /* ─── Jobs Table ───────────────────────────────────── */
+        .jobs-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            background: var(--bg-card);
+            border-radius: 12px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+        }
+        .jobs-table thead th {
+            background: #14141e;
+            padding: 0.8rem 1rem;
+            text-align: left;
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--text-muted);
+            border-bottom: 1px solid var(--border);
+        }
+        .jobs-table tbody tr {
+            transition: background 0.15s;
+            cursor: pointer;
+        }
+        .jobs-table tbody tr:hover {
+            background: var(--bg-hover);
+        }
+        .jobs-table td {
+            padding: 0.75rem 1rem;
+            font-size: 0.85rem;
+            border-bottom: 1px solid #1e1e2e;
+            color: var(--text-secondary);
+        }
+        .jobs-table tr:last-child td { border-bottom: none; }
+
+        /* ─── Status Badge ─────────────────────────────────── */
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+            padding: 0.2rem 0.6rem;
+            border-radius: 4px;
+            font-size: 0.72rem;
+            font-weight: 600;
+            font-family: var(--font-mono);
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+        .badge-updated { background: rgba(58, 219, 138, 0.12); color: var(--success); }
+        .badge-queued { background: rgba(74, 196, 255, 0.12); color: var(--info); }
+        .badge-processing { background: rgba(255, 179, 71, 0.12); color: var(--warning); }
+        .badge-failed { background: rgba(255, 92, 108, 0.12); color: var(--danger); }
+        .badge-rolled_back { background: rgba(136, 136, 168, 0.12); color: var(--text-secondary); }
+
+        .hash {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+        .time-ago {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+        .duration {
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+        }
+
+        /* ─── Detail Panel ─────────────────────────────────── */
+        .detail-panel {
+            display: none;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-top: 1rem;
+            margin-bottom: 2rem;
+        }
+        .detail-panel.open { display: block; }
+        .detail-panel h3 {
+            font-size: 1rem;
+            margin-bottom: 1rem;
+            color: var(--accent);
+        }
+        .detail-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.8rem;
+        }
+        .detail-item {
+            padding: 0.6rem;
+            background: var(--bg-primary);
+            border-radius: 6px;
+        }
+        .detail-item .label {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--text-muted);
+            margin-bottom: 0.2rem;
+        }
+        .detail-item .value {
+            font-size: 0.85rem;
+            color: var(--text-primary);
+            font-family: var(--font-mono);
+            word-break: break-all;
+        }
+        .transcript-snippet {
+            grid-column: 1 / -1;
+        }
+        .transcript-snippet .value {
+            font-family: var(--font-sans);
+            font-style: italic;
+            color: var(--text-secondary);
+        }
+
+        /* ─── Pagination ───────────────────────────────────── */
+        .pagination {
+            display: flex;
+            justify-content: center;
+            gap: 0.5rem;
+            margin-top: 1.5rem;
+        }
+        .pagination button {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: all 0.15s;
+        }
+        .pagination button:hover:not(:disabled) {
+            background: var(--accent-dim);
+            border-color: var(--accent);
+            color: #fff;
+        }
+        .pagination button:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+        .pagination .page-info {
+            display: flex;
+            align-items: center;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            padding: 0 0.5rem;
+        }
+
+        /* ─── Recent Transcripts ───────────────────────────── */
+        .recent-list {
+            margin-top: 2rem;
+        }
+        .recent-item {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 0.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .recent-item .snippet {
+            font-style: italic;
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+            flex: 1;
+        }
+        .recent-item .meta {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            text-align: right;
+            min-width: 120px;
+        }
+
+        /* ─── Loading ──────────────────────────────────────── */
+        .loading {
+            text-align: center;
+            padding: 3rem;
+            color: var(--text-muted);
+        }
+        .spinner {
+            display: inline-block;
+            width: 20px; height: 20px;
+            border: 2px solid var(--border);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-right: 0.5rem;
+            vertical-align: middle;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ─── Responsive ───────────────────────────────────── */
+        @media (max-width: 768px) {
+            main { padding: 1rem; }
+            .stats-grid { grid-template-columns: repeat(2, 1fr); }
+            .detail-grid { grid-template-columns: 1fr; }
+            .jobs-table { font-size: 0.8rem; }
+            .jobs-table td, .jobs-table th { padding: 0.5rem 0.6rem; }
+        }
+    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <header>
+        <h1>LifeLog <span>/ Admin</span></h1>
+        <div class="header-status">
+            <div class="status-dot" id="healthDot"></div>
+            <span id="healthText">Checking...</span>
+        </div>
+    </header>
+
+    <main>
+        <!-- Stats -->
+        <div class="stats-grid" id="statsGrid">
+            <div class="stat-card">
+                <div class="label">Total Jobs</div>
+                <div class="value" id="totalJobs">—</div>
+            </div>
+            <div class="stat-card">
+                <div class="label">Completed</div>
+                <div class="value" id="completedJobs" style="color: var(--success)">—</div>
+            </div>
+            <div class="stat-card">
+                <div class="label">Failed</div>
+                <div class="value" id="failedJobs" style="color: var(--danger)">—</div>
+            </div>
+            <div class="stat-card">
+                <div class="label">Queued</div>
+                <div class="value" id="queuedJobs" style="color: var(--info)">—</div>
+            </div>
+            <div class="stat-card">
+                <div class="label">Transcripts</div>
+                <div class="value" id="totalTranscripts">—</div>
+            </div>
+        </div>
+
+        <!-- Jobs Table -->
+        <div class="section-header">
+            <h2>Gemini Jobs</h2>
+            <div class="filter-bar">
+                <button class="filter-btn active" data-status="" onclick="filterJobs(this, '')">All</button>
+                <button class="filter-btn" data-status="updated" onclick="filterJobs(this, 'updated')">Updated</button>
+                <button class="filter-btn" data-status="queued" onclick="filterJobs(this, 'queued')">Queued</button>
+                <button class="filter-btn" data-status="processing" onclick="filterJobs(this, 'processing')">Processing</button>
+                <button class="filter-btn" data-status="failed" onclick="filterJobs(this, 'failed')">Failed</button>
+            </div>
+        </div>
+
+        <table class="jobs-table">
+            <thead>
+                <tr>
+                    <th>Status</th>
+                    <th>Job ID</th>
+                    <th>Created</th>
+                    <th>Duration</th>
+                    <th>Post Hash</th>
+                </tr>
+            </thead>
+            <tbody id="jobsBody">
+                <tr><td colspan="5" class="loading"><span class="spinner"></span> Loading...</td></tr>
+            </tbody>
+        </table>
+
+        <div class="pagination">
+            <button id="prevBtn" onclick="prevPage()" disabled>← Previous</button>
+            <div class="page-info" id="pageInfo">Page 1</div>
+            <button id="nextBtn" onclick="nextPage()" disabled>Next →</button>
+        </div>
+
+        <!-- Job Detail Panel -->
+        <div class="detail-panel" id="detailPanel">
+            <h3 id="detailTitle">Job Detail</h3>
+            <div class="detail-grid" id="detailGrid"></div>
+        </div>
+
+        <!-- Recent Transcripts -->
+        <div class="recent-list">
+            <div class="section-header">
+                <h2>Recent Transcripts</h2>
+            </div>
+            <div id="recentTranscripts">
+                <div class="loading"><span class="spinner"></span> Loading...</div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const API_BASE = '/api/admin';
+        const PAGE_SIZE = 15;
+        let currentOffset = 0;
+        let currentStatus = '';
+        let totalJobs = 0;
+
+        // ─── Health Check ────────────────────────────────────
+        async function checkHealth() {
+            try {
+                const res = await fetch(`${API_BASE}/health`);
+                const data = await res.json();
+                document.getElementById('healthDot').style.background =
+                    data.status === 'healthy' ? 'var(--success)' : 'var(--danger)';
+                document.getElementById('healthText').textContent =
+                    data.status === 'healthy' ? 'System Healthy' : 'Unhealthy';
+            } catch {
+                document.getElementById('healthDot').style.background = 'var(--danger)';
+                document.getElementById('healthText').textContent = 'Unreachable';
+            }
+        }
+
+        // ─── Stats ───────────────────────────────────────────
+        async function loadStats() {
+            try {
+                const res = await fetch(`${API_BASE}/stats`);
+                const data = await res.json();
+
+                document.getElementById('totalJobs').textContent = data.totalJobs;
+                document.getElementById('totalTranscripts').textContent = data.totalTranscripts;
+
+                const byStatus = {};
+                data.jobsByStatus.forEach(s => byStatus[s.status] = s.count);
+                document.getElementById('completedJobs').textContent = byStatus['updated'] || 0;
+                document.getElementById('failedJobs').textContent = byStatus['failed'] || 0;
+                document.getElementById('queuedJobs').textContent = byStatus['queued'] || 0;
+
+                // Recent transcripts
+                const container = document.getElementById('recentTranscripts');
+                if (data.recentTranscripts.length === 0) {
+                    container.innerHTML = '<div style="color:var(--text-muted);padding:1rem;">No transcripts yet.</div>';
+                    return;
+                }
+                container.innerHTML = data.recentTranscripts.map(t => `
+                    <div class="recent-item">
+                        <div class="snippet">"${escapeHtml(t.snippet)}"</div>
+                        <div class="meta">
+                            <div class="badge badge-${t.status}">${t.status}</div>
+                            <div style="margin-top:0.3rem">${timeAgo(t.createdAt)}</div>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (e) {
+                console.error('Failed to load stats:', e);
+            }
+        }
+
+        // ─── Jobs ────────────────────────────────────────────
+        async function loadJobs() {
+            const params = new URLSearchParams({ limit: PAGE_SIZE, offset: currentOffset });
+            if (currentStatus) params.set('status', currentStatus);
+
+            try {
+                const res = await fetch(`${API_BASE}/jobs?${params}`);
+                const data = await res.json();
+                totalJobs = data.total;
+
+                const tbody = document.getElementById('jobsBody');
+                if (data.jobs.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:2rem;">No jobs found.</td></tr>';
+                } else {
+                    tbody.innerHTML = data.jobs.map(j => `
+                        <tr onclick="loadJobDetail('${j.id}')">
+                            <td><span class="badge badge-${j.status}">${j.status}</span></td>
+                            <td class="hash">${j.id.substring(0, 8)}…</td>
+                            <td class="time-ago">${timeAgo(j.createdAt)}</td>
+                            <td class="duration">${j.durationMs != null ? (j.durationMs / 1000).toFixed(1) + 's' : '—'}</td>
+                            <td class="hash">${j.postCommitHash ? j.postCommitHash.substring(0, 7) : '—'}</td>
+                        </tr>
+                    `).join('');
+                }
+
+                // Pagination
+                document.getElementById('prevBtn').disabled = currentOffset === 0;
+                document.getElementById('nextBtn').disabled = currentOffset + PAGE_SIZE >= totalJobs;
+                const page = Math.floor(currentOffset / PAGE_SIZE) + 1;
+                const totalPages = Math.ceil(totalJobs / PAGE_SIZE) || 1;
+                document.getElementById('pageInfo').textContent = `Page ${page} of ${totalPages}`;
+            } catch (e) {
+                console.error('Failed to load jobs:', e);
+                document.getElementById('jobsBody').innerHTML =
+                    '<tr><td colspan="5" style="color:var(--danger)">Failed to load jobs</td></tr>';
+            }
+        }
+
+        async function loadJobDetail(id) {
+            try {
+                const res = await fetch(`${API_BASE}/jobs/${id}`);
+                const data = await res.json();
+                const panel = document.getElementById('detailPanel');
+                document.getElementById('detailTitle').textContent = `Job ${data.id.substring(0, 8)}…`;
+
+                const fields = [
+                    ['Status', `<span class="badge badge-${data.status}">${data.status}</span>`],
+                    ['Duration', data.durationMs != null ? `${(data.durationMs / 1000).toFixed(1)}s` : 'N/A'],
+                    ['Pre-Commit', data.preCommitHash || 'N/A'],
+                    ['Post-Commit', data.postCommitHash || 'N/A'],
+                    ['Started At', data.startedAt ? new Date(data.startedAt).toLocaleString() : 'N/A'],
+                    ['Finished At', data.finishedAt ? new Date(data.finishedAt).toLocaleString() : 'N/A'],
+                    ['Retry Count', data.retryCount],
+                    ['Exit Code', data.exitCode ?? 'N/A'],
+                ];
+
+                if (data.transcriptSnippet) {
+                    fields.push(['Transcript', data.transcriptSnippet, true]);
+                }
+                if (data.errorMessage) {
+                    fields.push(['Error', data.errorMessage, true]);
+                }
+
+                document.getElementById('detailGrid').innerHTML = fields.map(([label, value, wide]) => `
+                    <div class="detail-item ${wide ? 'transcript-snippet' : ''}">
+                        <div class="label">${label}</div>
+                        <div class="value">${value}</div>
+                    </div>
+                `).join('');
+
+                panel.classList.add('open');
+                panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            } catch (e) {
+                console.error('Failed to load job detail:', e);
+            }
+        }
+
+        // ─── Navigation ──────────────────────────────────────
+        function filterJobs(btn, status) {
+            document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            currentStatus = status;
+            currentOffset = 0;
+            document.getElementById('detailPanel').classList.remove('open');
+            loadJobs();
+        }
+
+        function prevPage() {
+            currentOffset = Math.max(0, currentOffset - PAGE_SIZE);
+            loadJobs();
+        }
+
+        function nextPage() {
+            if (currentOffset + PAGE_SIZE < totalJobs) {
+                currentOffset += PAGE_SIZE;
+                loadJobs();
+            }
+        }
+
+        // ─── Utilities ───────────────────────────────────────
+        function timeAgo(dateStr) {
+            const diff = Date.now() - new Date(dateStr).getTime();
+            const mins = Math.floor(diff / 60000);
+            if (mins < 1) return 'just now';
+            if (mins < 60) return `${mins}m ago`;
+            const hours = Math.floor(mins / 60);
+            if (hours < 24) return `${hours}h ago`;
+            const days = Math.floor(hours / 24);
+            return `${days}d ago`;
+        }
+
+        function escapeHtml(str) {
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+
+        // ─── Init ────────────────────────────────────────────
+        checkHealth();
+        loadStats();
+        loadJobs();
+
+        // Auto-refresh every 15 seconds
+        setInterval(() => {
+            checkHealth();
+            loadStats();
+            loadJobs();
+        }, 15000);
+    </script>
+</body>
+</html>
