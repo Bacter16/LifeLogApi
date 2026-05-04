@@ -437,7 +437,7 @@ people: []
     }
 
     private string RunGit(string arguments, string workingDirectory)
-        => RunShellCommand("git", arguments, workingDirectory);
+        => RunShellCommand("git", $"-c safe.directory={workingDirectory} {arguments}", workingDirectory);
 
     private string RunShellCommand(string command, string arguments, string workingDirectory)
     {
