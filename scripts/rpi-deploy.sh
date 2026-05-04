@@ -15,4 +15,17 @@ docker compose \
   -f "$DEPLOY_DIR/docker-compose.rpi.yml" \
   up -d --build
 
+docker run \
+  --rm \
+  -u root \
+  -v deploy_syncthing_config:/var/syncthing/config \
+  --entrypoint chown \
+  syncthing/syncthing:latest \
+  -R 1000:1000 /var/syncthing/config
+
+docker compose \
+  --env-file "$DEPLOY_DIR/.env" \
+  -f "$DEPLOY_DIR/docker-compose.rpi.yml" \
+  up -d syncthing
+
 echo "Deployment complete. Check: docker compose --env-file deploy/.env -f deploy/docker-compose.rpi.yml ps"
