@@ -1,0 +1,3 @@
+{$LIFELOG_HOSTNAME} {
+	reverse_proxy lifelog-api:5000
+}

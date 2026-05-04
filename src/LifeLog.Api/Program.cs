@@ -3,6 +3,7 @@ using LifeLog.Infrastructure.Data;
 using LifeLog.Api.Services;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.WebHost.UseUrls("http://0.0.0.0:5000");
 
 // Database
 builder.Services.AddDbContext<LifeLogDbContext>(options =>
@@ -18,6 +19,12 @@ builder.Services.AddControllers();
 builder.Services.AddOpenApi();
 
 var app = builder.Build();
+
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<LifeLogDbContext>();
+    await db.Database.MigrateAsync();
+}
 
 if (app.Environment.IsDevelopment())
 {
@@ -38,8 +45,10 @@ app.Use(async (context, next) =>
         sw.ElapsedMilliseconds);
 });
 
-app.UseHttpsRedirection();
-app.UseDefaultFiles();
-app.UseStaticFiles();
+if (builder.Configuration.GetValue("UseHttpsRedirection", false))
+{
+    app.UseHttpsRedirection();
+}
+
 app.MapControllers();
 app.Run();

@@ -1,23 +1,29 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using LifeLog.Infrastructure.Data;
+using LifeLog.Api.Filters;
+using Microsoft.AspNetCore.Authorization;
 
 namespace LifeLog.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[ApiKeyAuthFilter]
 public class AdminController : ControllerBase
 {
     private readonly LifeLogDbContext _db;
+    private readonly IConfiguration _config;
 
-    public AdminController(LifeLogDbContext db)
+    public AdminController(LifeLogDbContext db, IConfiguration config)
     {
         _db = db;
+        _config = config;
     }
 
     // ─── Health ─────────────────────────────────────────────────
 
     [HttpGet("health")]
+    [AllowAnonymous]
     public IActionResult HealthCheck()
     {
         return Ok(new
@@ -26,6 +32,29 @@ public class AdminController : ControllerBase
             timestamp = DateTimeOffset.UtcNow,
             version = "1.0.0"
         });
+    }
+
+    [HttpGet("ready")]
+    public async Task<IActionResult> ReadyCheck()
+    {
+        var vaultsBasePath = _config["LifeLog:VaultsBasePath"]
+            ?? _config["LIFELOG_VAULTS_BASE_PATH"]
+            ?? "/data/vaults/users";
+
+        var dbReady = await _db.Database.CanConnectAsync();
+        var userVaultPath = Path.Combine(vaultsBasePath, "user_1");
+        var vaultsReady = Directory.Exists(Path.Combine(userVaultPath, "vault-work"))
+            && Directory.Exists(Path.Combine(userVaultPath, "vault-live"));
+
+        return dbReady && vaultsReady
+            ? Ok(new { status = "ready", db = "ok", vaults = "ok" })
+            : StatusCode(StatusCodes.Status503ServiceUnavailable, new
+            {
+                status = "not_ready",
+                db = dbReady ? "ok" : "unavailable",
+                vaults = vaultsReady ? "ok" : "missing",
+                vaultsBasePath
+            });
     }
 
     // ─── Jobs Listing ───────────────────────────────────────────
@@ -160,44 +189,4 @@ public class AdminController : ControllerBase
         });
     }
 
-    // ─── Rollback ───────────────────────────────────────────────
-
-    [HttpPost("jobs/{id}/rollback")]
-    public async Task<IActionResult> RollbackJob(string id)
-    {
-        var job = await _db.GeminiJobs.FindAsync(id);
-        if (job == null) return NotFound();
-        if (string.IsNullOrEmpty(job.PreCommitHash)) return BadRequest("No pre-commit hash found for job.");
-
-        var workspacePath = $"/Users/cristian_bacter/Documents/Projects/LifeLog/LifeLogVaults/users/{job.UserId}/vault-work";
-        var livePath = $"/Users/cristian_bacter/Documents/Projects/LifeLog/LifeLogVaults/users/{job.UserId}/vault-live";
-
-        var process = new System.Diagnostics.Process
-        {
-            StartInfo = new System.Diagnostics.ProcessStartInfo
-            {
-                FileName = "git",
-                Arguments = $"reset --hard {job.PreCommitHash}",
-                WorkingDirectory = workspacePath,
-                RedirectStandardOutput = true,
-                CreateNoWindow = true
-            }
-        };
-        process.Start();
-        process.WaitForExit();
-
-        process.StartInfo.Arguments = "push origin main --force";
-        process.Start();
-        process.WaitForExit();
-
-        process.StartInfo.WorkingDirectory = livePath;
-        process.StartInfo.Arguments = "pull origin main";
-        process.Start();
-        process.WaitForExit();
-
-        job.Status = "rolled_back";
-        await _db.SaveChangesAsync();
-
-        return Ok(new { status = "rolled_back", preCommitHash = job.PreCommitHash });
-    }
 }

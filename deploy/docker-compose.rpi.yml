@@ -1,0 +1,80 @@
+services:
+  lifelog-postgres:
+    image: postgres:15-alpine
+    container_name: lifelog-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - lifelog_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  lifelog-api:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    container_name: lifelog-api
+    restart: unless-stopped
+    depends_on:
+      lifelog-postgres:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://0.0.0.0:5000
+      TZ: ${TZ}
+      ConnectionStrings__DefaultConnection: Host=lifelog-postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
+      ApiKeys__0: ${LIFELOG_API_KEY}
+      LIFELOG_API_KEYS: ${LIFELOG_API_KEY}
+      LifeLog__VaultsBasePath: /data/vaults/users
+      LifeLog__BackendRootPath: /app
+      LifeLog__CommandWrapperPath: /app/scripts/gemini-wrapper.sh
+      Gemini__CliPath: gemini
+      Gemini__Model: ${GEMINI_MODEL}
+      Gemini__TimeoutSeconds: ${GEMINI_TIMEOUT_SECONDS}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+    volumes:
+      - ${LIFELOG_VAULTS_PATH}:/data/vaults
+    expose:
+      - "5000"
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: lifelog-caddy
+    restart: unless-stopped
+    depends_on:
+      - lifelog-api
+    environment:
+      LIFELOG_HOSTNAME: ${LIFELOG_HOSTNAME}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+  syncthing:
+    image: syncthing/syncthing:latest
+    container_name: lifelog-syncthing
+    restart: unless-stopped
+    hostname: lifelog-rpi5
+    ports:
+      - "127.0.0.1:8384:8384"
+      - "22000:22000/tcp"
+      - "22000:22000/udp"
+      - "21027:21027/udp"
+    volumes:
+      - syncthing_config:/var/syncthing/config
+      - ${LIFELOG_VAULTS_PATH}/users/user_1/vault-live:/var/syncthing/vault-live
+
+volumes:
+  lifelog_postgres_data:
+  caddy_data:
+  caddy_config:
+  syncthing_config:

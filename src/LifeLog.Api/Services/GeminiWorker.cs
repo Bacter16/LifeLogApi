@@ -11,11 +11,15 @@ public class GeminiWorker : BackgroundService
     private readonly ILogger<GeminiWorker> _logger;
     private readonly IConfiguration _config;
 
-    // Base path for all user vaults
-    private const string VaultsBasePath = "/Users/cristian_bacter/Documents/Projects/LifeLog/LifeLogVaults/users";
+    private string VaultsBasePath => GetConfig("LifeLog:VaultsBasePath", "LIFELOG_VAULTS_BASE_PATH")
+        ?? "/data/vaults/users";
 
-    // Backend root — Gemini CLI runs here (not in vault) to avoid agentic GEMINI.md mode
-    private const string BackendRootPath = "/Users/cristian_bacter/Documents/Projects/LifeLog/LifeLogBackend";
+    // Gemini CLI runs here, not in the vault, to avoid agentic GEMINI.md mode.
+    private string BackendRootPath => GetConfig("LifeLog:BackendRootPath", "LIFELOG_BACKEND_WORKDIR")
+        ?? AppContext.BaseDirectory;
+
+    private string CommandWrapperPath => GetConfig("LifeLog:CommandWrapperPath", "LIFELOG_COMMAND_WRAPPER_PATH")
+        ?? Path.Combine(BackendRootPath, "scripts", "gemini-wrapper.sh");
 
     // Track whether the weekly review was already generated this session
     private DateTimeOffset? _lastWeeklyReviewDate;
@@ -297,9 +301,10 @@ public class GeminiWorker : BackgroundService
     /// </summary>
     private async Task<string> InvokeGeminiAsync(string prompt, string workingDirectory, CancellationToken cancellationToken)
     {
-        var cliPath = _config["Gemini:CliPath"] ?? "gemini";
-        var model = _config["Gemini:Model"] ?? string.Empty;
-        var timeoutSeconds = int.TryParse(_config["Gemini:TimeoutSeconds"], out var t) ? t : 120;
+        var cliPath = GetConfig("Gemini:CliPath", "GEMINI_CLI_PATH") ?? "gemini";
+        var model = GetConfig("Gemini:Model", "GEMINI_MODEL") ?? string.Empty;
+        var timeoutSeconds = int.TryParse(GetConfig("Gemini:TimeoutSeconds", "GEMINI_TIMEOUT_SECONDS"), out var t) ? t : 120;
+        var apiKey = GetConfig("Gemini:ApiKey", "GEMINI_API_KEY");
 
         // Only pass --model if explicitly configured; otherwise use CLI default
         var modelArg = string.IsNullOrWhiteSpace(model) ? string.Empty : $"--model {model} ";
@@ -321,6 +326,11 @@ public class GeminiWorker : BackgroundService
                 CreateNoWindow = true
             }
         };
+
+        if (!string.IsNullOrWhiteSpace(apiKey))
+        {
+            process.StartInfo.Environment["GEMINI_API_KEY"] = apiKey;
+        }
 
         process.Start();
 
@@ -431,7 +441,7 @@ people: []
 
     private string RunShellCommand(string command, string arguments, string workingDirectory)
     {
-        var wrapperPath = "/Users/cristian_bacter/Documents/Projects/LifeLog/LifeLogBackend/scripts/gemini-wrapper.sh";
+        var wrapperPath = CommandWrapperPath;
 
         if (!File.Exists(wrapperPath))
         {
@@ -466,4 +476,7 @@ people: []
 
         return output;
     }
+
+    private string? GetConfig(string primaryKey, string envKey)
+        => _config[primaryKey] ?? _config[envKey];
 }

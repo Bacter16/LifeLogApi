@@ -1,0 +1,11 @@
+**/.git
+**/.idea
+**/.local
+**/bin
+**/obj
+**/BuildHost-*
+Library
+src/Library
+.env
+deploy/.env
+backups
