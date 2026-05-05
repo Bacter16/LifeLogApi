@@ -430,10 +430,23 @@ people: []
 """;
         }
 
-        var logEntry = $"\n- {noteDate:HH:mm} — {rawText}";
-        return existing.Contains("## Log")
-            ? existing.Replace("## Log", $"## Log{logEntry}")
-            : existing + logEntry;
+        var logEntry = $"- {noteDate:HH:mm} — {rawText}";
+        if (!existing.Contains("## Log"))
+        {
+            return $"{existing.TrimEnd()}\n\n## Log\n{logEntry}\n";
+        }
+
+        var logHeaderIndex = existing.IndexOf("## Log", StringComparison.Ordinal);
+        var nextSectionIndex = existing.IndexOf("\n## ", logHeaderIndex + "## Log".Length, StringComparison.Ordinal);
+
+        if (nextSectionIndex < 0)
+        {
+            return $"{existing.TrimEnd()}\n{logEntry}\n";
+        }
+
+        var beforeNextSection = existing[..nextSectionIndex].TrimEnd();
+        var nextSection = existing[nextSectionIndex..];
+        return $"{beforeNextSection}\n{logEntry}{nextSection}";
     }
 
     private string RunGit(string arguments, string workingDirectory)

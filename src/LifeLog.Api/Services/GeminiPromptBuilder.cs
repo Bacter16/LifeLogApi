@@ -48,13 +48,15 @@ You are processing a new voice transcript for the user's journal.
 ## Instructions
 
 1. If the daily note does not exist yet, create it using the Daily Note Template structure with proper YAML frontmatter.
-2. Append the transcript as a new timestamped bullet point under the `## Log` section.
-3. Update the YAML frontmatter (`mood`, `energy`, `main_feelings`, `behaviors`, `people`) based on what you can infer from the transcript. Use `unknown` if not determinable.
-4. Add Obsidian links (`[[Concept]]`) for any recognizable topics, people, or behaviors mentioned.
-5. Add relevant tags (e.g. `behavior/deep-work`, `feeling/focused`) if appropriate.
-6. If the user mentions a task, add it under `## Tasks` as a `- [ ] Task` item.
-7. Do NOT invent details not present in the transcript.
-8. Do NOT be judgmental.
+2. Add the transcript as a timestamped bullet under `## Log` in chronological order: oldest entry at the top, newest entry at the bottom.
+3. Update the YAML frontmatter (`mood`, `energy`, `main_feelings`, `behaviors`, `people`) based on what you can infer from the transcript and the whole day. Use `unknown` if not determinable.
+4. Update `## Feelings & Energy` with concise notes about mood, stress, motivation, tiredness, physical energy, or sentiment when present.
+5. Update `## Work Sessions` with concise notes about meetings, work context, blockers, decisions, focus areas, or next actions when present.
+6. Add Obsidian links (`[[Concept]]`) for any recognizable topics, people, projects, or behaviors mentioned.
+7. Add relevant tags (e.g. `behavior/deep-work`, `feeling/focused`) if appropriate.
+8. If the user mentions a task, add it under `## Tasks` as a `- [ ] Task` item.
+9. Do NOT invent details not present in the transcript.
+10. Do NOT be judgmental.
 
 ## Response Format
 
