@@ -21,6 +21,7 @@ services:
       dockerfile: Dockerfile
     container_name: lifelog-api
     restart: unless-stopped
+    user: "${LIFELOG_UID:-1000}:${LIFELOG_GID:-1000}"
     depends_on:
       lifelog-postgres:
         condition: service_healthy
