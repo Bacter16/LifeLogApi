@@ -472,9 +472,10 @@ people: []
         {
             _logger.LogWarning("Command exited {ExitCode}: {Command} {Arguments} | stdout: {Output} | stderr: {Error}",
                 process.ExitCode, command, arguments, output.Trim(), err.Trim());
+            throw new InvalidOperationException($"{command} {arguments} failed: {err.Trim()}");
         }
 
-        return output;
+        return output + err;
     }
 
     private string? GetConfig(string primaryKey, string envKey)
