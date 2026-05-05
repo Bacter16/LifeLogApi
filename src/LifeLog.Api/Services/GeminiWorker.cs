@@ -424,6 +424,14 @@ people: []
 
 ## Work Sessions
 
+## Time & Flow
+
+## Patterns
+
+## Insights
+
+## One Small Improvement
+
 ## People
 
 ## Evening Review

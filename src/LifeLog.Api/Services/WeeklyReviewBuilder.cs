@@ -49,10 +49,13 @@ You are generating a weekly review for **{weekLabel}** ({weekStart:yyyy-MM-dd} �
 4. Set `date_range` to `{weekStart:yyyy-MM-dd} → {weekEnd:yyyy-MM-dd}`.
 5. Determine `mood_trend` and `energy_trend` from the daily frontmatter and content.
 6. Count behavior frequencies across the week (e.g., "Deep Work appeared 4 out of 7 days").
-7. List all projects that were mentioned across the dailies under `## Projects Progressed`.
-8. Consolidate tasks — mark completed ones as `[x]` and unfinished ones as `[ ]`.
-9. Surface wins and honest observations.
-10. Suggest 2-3 focus areas for next week based on the patterns.
+7. Analyze timing patterns: sleep/wake rhythm, work start time, meals, breaks, context switches, long gaps, and rough durations where timestamps support it.
+8. Identify what seems to improve mood, energy, focus, or follow-through.
+9. Identify what repeatedly drains energy, creates friction, or causes avoidance.
+10. List all projects that were mentioned across the dailies under `## Projects Progressed`.
+11. Consolidate tasks — mark completed ones as `[x]` and unfinished ones as `[ ]`.
+12. Surface wins and honest observations.
+13. Suggest 2-3 specific, low-friction focus areas for next week based on the patterns.
 
 ## Response Format
 
