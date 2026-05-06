@@ -33,6 +33,7 @@ VAULTS_PATH="${LIFELOG_VAULTS_PATH:-/srv/lifelog/vaults}"
 USER_PATH="$VAULTS_PATH/users/user_1"
 LIVE_PATH="$USER_PATH/vault-live"
 WORK_PATH="$USER_PATH/vault-work"
+WORK_REMOTE="../vault-live"
 
 sudo mkdir -p "$LIVE_PATH" "$WORK_PATH"
 sudo chown -R "$USER":"$USER" "$VAULTS_PATH"
@@ -56,10 +57,12 @@ if [ ! -d "$WORK_PATH/.git" ]; then
   git -C "$WORK_PATH" init -b main
   git -C "$WORK_PATH" config user.name "LifeLog"
   git -C "$WORK_PATH" config user.email "lifelog@local"
-  git -C "$WORK_PATH" remote add origin "$LIVE_PATH"
+  git -C "$WORK_PATH" remote add origin "$WORK_REMOTE"
   git -C "$WORK_PATH" pull origin main
 elif ! git -C "$WORK_PATH" remote get-url origin >/dev/null 2>&1; then
-  git -C "$WORK_PATH" remote add origin "$LIVE_PATH"
+  git -C "$WORK_PATH" remote add origin "$WORK_REMOTE"
+else
+  git -C "$WORK_PATH" remote set-url origin "$WORK_REMOTE"
 fi
 
 echo "First setup complete. Edit deploy/.env, configure router ports 80/443, then run scripts/rpi-deploy.sh."

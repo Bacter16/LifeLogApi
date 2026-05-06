@@ -94,6 +94,7 @@ public class GeminiWorker : BackgroundService
 
             // Step 1: Sync vault-work from vault-live (always start fresh from live state)
             _logger.LogInformation("Pulling vault-work from vault-live...");
+            EnsureVaultRemote(workPath);
             RunGit("pull origin main", workPath);
 
             // Step 2: Record pre-commit hash
@@ -223,6 +224,7 @@ public class GeminiWorker : BackgroundService
         var livePath = Path.Combine(VaultsBasePath, userId, "vault-live");
 
         // Step 1: Sync vault-work
+        EnsureVaultRemote(workPath);
         RunGit("pull origin main", workPath);
 
         // Step 2: Compute week boundaries
@@ -459,6 +461,9 @@ people: []
 
     private string RunGit(string arguments, string workingDirectory)
         => RunShellCommand("git", $"-c safe.directory={workingDirectory} {arguments}", workingDirectory);
+
+    private void EnsureVaultRemote(string workPath)
+        => RunGit("remote set-url origin ../vault-live", workPath);
 
     private string RunShellCommand(string command, string arguments, string workingDirectory)
     {
